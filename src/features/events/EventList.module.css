@@ -9,3 +9,4 @@
 
 .meta { @apply text-[11px] text-gray-500 flex justify-between items-center mt-0.5; }
 .status { @apply px-2 py-0.5 text-[10px] rounded-full bg-gray-100 text-gray-700; }
+

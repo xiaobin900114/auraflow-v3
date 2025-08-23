@@ -57,3 +57,5 @@
 .todoInput { @apply w-full text-xs leading-tight resize-none overflow-hidden border rounded px-2 py-1; }
 .editing { @apply ring-2 ring-indigo-200; }
 .editRow { @apply flex items-start gap-2 flex-1; }
+
+
