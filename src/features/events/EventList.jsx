@@ -2,10 +2,6 @@ import React, { useMemo } from 'react';
 import EventCard from './EventCard';
 import styles from './EventList.module.css';
 
-/**
- * 解析事件的开始/结束时间，兼容多种列名：
- * 优先使用 v1 的 start_at_utc/end_at_utc；其次回退到 start_time/end_time；最后回退到 created_at。
- */
 function getEventRange(e) {
   const startStr = e.start_at_utc || e.start_time || e.created_at;
   const endStr   = e.end_at_utc   || e.end_time   || startStr;
@@ -13,25 +9,16 @@ function getEventRange(e) {
   const end   = endStr ? new Date(endStr) : null;
   return { start, end };
 }
-
-/** 返回某天的起止（本地时区） */
 function dayBounds(date) {
-  const dStart = new Date(date);
-  dStart.setHours(0, 0, 0, 0);
-  const dEnd = new Date(date);
-  dEnd.setHours(23, 59, 59, 999);
+  const dStart = new Date(date); dStart.setHours(0,0,0,0);
+  const dEnd   = new Date(date); dEnd.setHours(23,59,59,999);
   return { dStart, dEnd };
 }
-
-/** 判断一个事件是否与指定“天区间”有重叠（闭区间重叠） */
 function overlapsDay(e, dayStart, dayEnd) {
   const { start, end } = getEventRange(e);
   if (!start || !end) return false;
-  // 只要 [start, end] 与 [dayStart, dayEnd] 有交集就显示
   return start <= dayEnd && end >= dayStart;
 }
-
-/** 排序规则：按开始时间升序（无开始时间的放后面） */
 function sortByStart(a, b) {
   const { start: sa } = getEventRange(a);
   const { start: sb } = getEventRange(b);
@@ -40,34 +27,66 @@ function sortByStart(a, b) {
   if (!sa && sb) return 1;
   return 0;
 }
+const isCompleted = (e) =>
+  ['done', 'cancelled'].includes(String(e.status || '').toLowerCase());
 
 export default function EventList({ allEvents, selectedDate, activeFilter, selectedEvent, onSelectEvent }) {
-  const filteredEvents = useMemo(() => {
+  const { active, completed } = useMemo(() => {
     const { dStart, dEnd } = dayBounds(selectedDate);
-
     let list = allEvents.filter(e => overlapsDay(e, dStart, dEnd));
-
     if (activeFilter !== 'all') {
       list = list.filter(e => (e.category || 'uncategorized') === activeFilter);
     }
-
-    return list.sort(sortByStart);
+    list = list.sort(sortByStart);
+    return {
+      active: list.filter(e => !isCompleted(e)),
+      completed: list.filter(isCompleted),
+    };
   }, [allEvents, selectedDate, activeFilter]);
 
-  if (!filteredEvents.length) {
+  if (!active.length && !completed.length) {
     return <div className={styles.empty}>无任务</div>;
   }
 
   return (
-    <div className={styles.container}>
-      {filteredEvents.map(event => (
-        <EventCard
-          key={event.id}
-          event={event}
-          isSelected={selectedEvent?.id === event.id}
-          onSelect={() => onSelectEvent(event)}
-        />
-      ))}
+    <div>
+      {/* 进行中 */}
+      {active.length > 0 && (
+        <div className={styles.container}>
+          {active.map(event => (
+            <EventCard
+              key={event.id}
+              event={event}
+              isSelected={selectedEvent?.id === event.id}
+              onSelect={() => onSelectEvent(event)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 已完成（done / cancelled） */}
+      {completed.length > 0 && (
+        <>
+          <div className={styles.sectionHeader}>
+            <span className={styles.divider} />
+            <span className={styles.sectionTitle}>已完成（{completed.length}）</span>
+            <span className={styles.divider} />
+          </div>
+
+          {/* 使用 completedWrap（若有新CSS会生效）；再叠加内联弱化兜底 */}
+          <div className={`${styles.container} ${styles.completedWrap || ''}`} style={{ opacity: 0.9 }}>
+            {completed.map(event => (
+              <EventCard
+                key={event.id}
+                event={event}
+                muted      // 👈 传入“淡化”标记；EventCard 内会内联处理
+                isSelected={selectedEvent?.id === event.id}
+                onSelect={() => onSelectEvent(event)}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
