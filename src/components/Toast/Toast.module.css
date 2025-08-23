@@ -1,0 +1,5 @@
+.wrap { @apply fixed z-[9999] top-3 right-3 flex flex-col gap-2; }
+.toast { @apply text-xs px-3 py-2 rounded-md shadow bg-gray-800 text-white; }
+.info { }
+.success { @apply bg-green-600; }
+.error { @apply bg-red-600; }

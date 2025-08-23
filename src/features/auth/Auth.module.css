@@ -1,0 +1,21 @@
+.container {
+  @apply min-h-screen flex items-center justify-center p-4 bg-gray-50;
+}
+.authBox {
+  @apply max-w-sm w-full bg-white p-6 rounded-lg shadow;
+}
+.title {
+  @apply text-lg font-bold text-center text-gray-800 mb-4;
+}
+.form {
+  @apply space-y-3;
+}
+.form input {
+  @apply w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500;
+}
+.button {
+  @apply w-full mt-2 bg-indigo-600 text-white font-semibold py-2 rounded hover:bg-indigo-700 disabled:bg-indigo-400;
+}
+.message {
+  @apply text-red-500 text-center text-xs min-h-[1rem];
+}

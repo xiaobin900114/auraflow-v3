@@ -1,0 +1,26 @@
+.container { @apply border border-slate-200 rounded-md p-2 text-xs bg-white; }
+.meta { @apply flex justify-between items-center mb-1; }
+.date { @apply text-[10px] text-slate-500; }
+.editButton { @apply text-[11px] text-indigo-600 hover:underline; }
+
+/* 展示与段落 */
+.content { @apply text-slate-800 leading-5; }
+.contentP { @apply whitespace-pre-wrap mb-1; }
+
+/* 默认三行截断 */
+.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 展开按钮 */
+.expandButton { @apply mt-1 text-[11px] text-indigo-600 hover:underline; }
+.disabled { @apply opacity-50 pointer-events-none; }
+
+/* 编辑区 */
+.editor textarea { @apply w-full border rounded-md p-2 text-xs; }
+.actions { @apply mt-2 flex gap-2 justify-end; }
+.saveButton { @apply px-2 py-1 text-xs bg-indigo-600 text-white rounded disabled:bg-indigo-300; }
+.cancelButton { @apply px-2 py-1 text-xs border rounded; }
