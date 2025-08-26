@@ -40,7 +40,6 @@ export default function TodoPanel({ event }) {
     return { pending, done };
   }, [todos]);
 
-  // 勾选切换（乐观）
   const toggleComplete = async (todo) => {
     const snapshot = todos;
     setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, is_completed: !t.is_completed, __busy: true } : t));
@@ -53,12 +52,11 @@ export default function TodoPanel({ event }) {
       setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, __busy: false } : t));
       toast(!todo.is_completed ? '已标记完成' : '已标记未完成', 'success');
     } catch (e) {
-      setTodos(snapshot); // 回滚
+      setTodos(snapshot);
       toast(`操作失败：${e.message || ''}`, 'error');
     }
   };
 
-  // 文本更新：如果是 AI 创建的（ai_agent），一并把 created_by 改成 'user'
   const updateText = async (todo, newText, onDone, onError) => {
     const trimmed = (newText || '').trim();
     if (trimmed === todo.task_content) return onDone?.('nochange');
@@ -82,31 +80,26 @@ export default function TodoPanel({ event }) {
     }
   };
 
-  // 新增：明确写入 created_by: 'user'
   const handleAdd = async (e) => {
     e?.preventDefault?.();
     const text = (addText || '').trim();
     if (!event || !text || adding) return;
-
     setAdding(true);
     const tempId = `temp_${Date.now()}`;
     const temp = { id: tempId, event_id: event.id, task_content: text, is_completed: false, created_by: 'user', __temp: true, __busy: true };
     setTodos(curr => [temp, ...curr]);
     setAddText('');
-
     try {
       const { data, error } = await supabase
         .from('todo_items')
         .insert({ event_id: event.id, task_content: text, created_by: 'user' })
-        .select('*')
-        .limit(1)
-        .single();
+        .select('*').limit(1).single();
       if (error) throw error;
       setTodos(curr => curr.map(t => t.id === tempId ? { ...data, __busy: false } : t));
       toast('已添加', 'success');
     } catch (e2) {
-      setTodos(curr => curr.filter(t => t.id !== tempId)); // 回滚临时项
-      setAddText(text); // 保留输入以便重试
+      setTodos(curr => curr.filter(t => t.id !== tempId));
+      setAddText(text);
       toast(`添加失败：${e2.message || ''}`, 'error');
     } finally {
       setAdding(false);
@@ -120,7 +113,6 @@ export default function TodoPanel({ event }) {
   return (
     <div className={styles.wrap} aria-label="待办清单" role="region">
       <h3 className={styles.title}>待办清单</h3>
-
       <form onSubmit={handleAdd} className={styles.form}>
         <input
           name="todoContent"
@@ -129,13 +121,11 @@ export default function TodoPanel({ event }) {
           value={addText}
           onChange={(e) => setAddText(e.target.value)}
           disabled={adding}
-          aria-disabled={adding}
         />
         <button type="submit" className={styles.button} disabled={adding}>
           {adding ? '添加中…' : '+'}
         </button>
       </form>
-
       <div className={styles.group}>
         <div className={styles.groupHd}>
           <div className={styles.subtitle}>未完成</div>
@@ -153,7 +143,6 @@ export default function TodoPanel({ event }) {
           ))}
         </ul>
       </div>
-
       <div className={styles.group}>
         <div className={styles.groupHd}>
           <div className={styles.subtitle}>已完成</div>

@@ -21,7 +21,6 @@ export default function TodoItem({ todo, onToggle, onEdit, showCreatorLabel = fa
     }
   }, [editing, text]);
 
-  // 外部 todo 变化时，若非忙碌且非编辑，保持展示同步
   useEffect(() => {
     if (!busy && !editing) setText(todo.task_content || '');
   }, [todo.task_content]); // eslint-disable-line
@@ -30,8 +29,8 @@ export default function TodoItem({ todo, onToggle, onEdit, showCreatorLabel = fa
     if (submitting) return;
     setSubmitting(true);
     await onEdit(text,
-      () => { setSubmitting(false); setEditing(false); }, // 成功
-      () => { setSubmitting(false); /* 失败保留编辑态与文本 */ }
+      () => { setSubmitting(false); setEditing(false); },
+      () => { setSubmitting(false); }
     );
   };
 
@@ -56,10 +55,7 @@ export default function TodoItem({ todo, onToggle, onEdit, showCreatorLabel = fa
         onChange={() => !busy && onToggle()}
         className={styles.checkbox}
         disabled={busy}
-        aria-disabled={busy}
-        aria-checked={!!todo.is_completed}
       />
-
       {!editing ? (
         <div
           className={`${styles.todoText} ${todo.is_completed ? styles.doneText : ''}`}
