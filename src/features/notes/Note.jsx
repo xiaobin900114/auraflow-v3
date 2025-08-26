@@ -3,30 +3,80 @@ import styles from './Note.module.css';
 
 export default function Note({ note, onSave }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [content, setContent] = useState(note.note_content || '');
+  // 关键修正 #1: 为编辑模式创建一个独立的 state，防止父组件刷新导致光标跳动
+  const [editingContent, setEditingContent] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const textRef = useRef(null);
 
+  // 关键修正 #2: 封装一个可重用的函数来调整文本框高度
+  const adjustTextareaHeight = () => {
+    if (textRef.current) {
+      const textarea = textRef.current;
+      textarea.style.height = 'auto'; // 必须先重置，才能正确计算 scrollHeight
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  };
+
+  // 关键修正 #3: 这个 effect 只在进入编辑模式时触发一次
   useEffect(() => {
     if (isEditing) {
-      textRef.current?.focus();
-      textRef.current?.setSelectionRange(content.length, content.length);
+      // 从 note prop 初始化编辑内容
+      setEditingContent(note.note_content || '');
+      
+      // 使用 setTimeout 确保 DOM 渲染完毕后再执行聚焦和调整
+      setTimeout(() => {
+        if (textRef.current) {
+          textRef.current.focus();
+          // 将光标移动到文末
+          const len = textRef.current.value.length;
+          textRef.current.setSelectionRange(len, len);
+          adjustTextareaHeight(); // 调整初始高度
+        }
+      }, 0);
     }
-  }, [isEditing, content]);
+  }, [isEditing, note.note_content]); // 依赖 isEditing
+
+  // 当编辑内容变化时，实时调整高度
+  useEffect(() => {
+    if (isEditing) {
+      adjustTextareaHeight();
+    }
+  }, [editingContent, isEditing]);
 
   const handleSave = async () => {
-    if (saving) return;
+    if (saving || editingContent.trim() === note.note_content) {
+        setIsEditing(false);
+        return;
+    }
     setSaving(true);
     try {
-      await onSave(note.id, content);
+      await onSave(note.id, editingContent.trim());
       setIsEditing(false);
     } finally {
       setSaving(false);
     }
   };
 
-  // 段落渲染：双换行分段，单换行保留
+  const handleCancel = () => {
+    setIsEditing(false);
+  };
+  
+  // 关键修正 #4: 重新实现键盘事件
+  const handleKeyDown = (e) => {
+    // Enter 保存, Shift+Enter 换行 (默认行为)
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // 阻止默认的 Enter 换行
+      handleSave();
+    }
+    // Escape 取消
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      handleCancel();
+    }
+  };
+
+  // 段落渲染功能保持不变
   const renderParagraphs = (text) => {
     if (!text) return null;
     const blocks = text.includes('\n\n') ? text.split(/\n\n+/) : text.split(/\n/);
@@ -35,7 +85,7 @@ export default function Note({ note, onSave }) {
     ));
   };
 
-  const canToggle = !isEditing; // 编辑态禁用展开/收起
+  const canToggle = !isEditing;
 
   return (
     <div className={styles.container}>
@@ -47,6 +97,7 @@ export default function Note({ note, onSave }) {
       </div>
 
       {!isEditing ? (
+        // 展示模式 (您的原有逻辑)
         <div>
           <div
             className={`${styles.content} ${!expanded ? styles.clamp : ''}`}
@@ -72,22 +123,20 @@ export default function Note({ note, onSave }) {
           </button>
         </div>
       ) : (
+        // 编辑模式 (已修正)
         <div className={styles.editor}>
           <textarea
             ref={textRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows="4"
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave(); }
-              if (e.key === 'Escape') { e.preventDefault(); setContent(note.note_content || ''); setIsEditing(false); }
-            }}
+            value={editingContent}
+            onChange={(e) => setEditingContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleSave} // 失去焦点时自动保存
           />
           <div className={styles.actions}>
             <button onClick={handleSave} className={styles.saveButton} disabled={saving}>
               {saving ? '保存中…' : '保存'}
             </button>
-            <button onClick={() => { setContent(note.note_content || ''); setIsEditing(false); }} className={styles.cancelButton}>
+            <button onClick={handleCancel} className={styles.cancelButton}>
               取消
             </button>
           </div>
