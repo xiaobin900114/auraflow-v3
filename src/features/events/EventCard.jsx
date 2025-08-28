@@ -14,7 +14,7 @@ const fmtDateOnlyUS = (d) => {
 };
 
 const getStartEnd = (e) => {
-  const s = e.start_at_utc || e.start_time || e.start || e.created_at;
+  const s = e.start_at_utc || e.start_time || e.start || e.end_time;
   const ed = e.end_at_utc || e.end_time || e.end || s;
   return { s: s ? new Date(s) : null, e: ed ? new Date(ed) : null };
 };
