@@ -15,10 +15,24 @@ function dayBounds(date) {
   return { dStart, dEnd };
 }
 function overlapsDay(e, dayStart, dayEnd) {
+  // 新增逻辑：如果一个事件只有结束时间（end_time/end_at_utc），没有开始时间（start_time/start_at_utc）
+  // 那么我们将其视为一个时间点，只在它所属的那一天显示。
+  const hasEndTime = e.end_at_utc || e.end_time;
+  const hasStartTime = e.start_at_utc || e.start_time;
+
+  if (hasEndTime && !hasStartTime) {
+    const end = new Date(hasEndTime);
+    // 判断这个结束时间点是否在选定日期的范围内（从当天的00:00:00到23:59:59）
+    return end >= dayStart && end <= dayEnd;
+  }
+
+  // 保留原有逻辑：对于有开始时间或时间范围的事件，判断其时间段是否与选定日期重叠
   const { start, end } = getEventRange(e);
   if (!start || !end) return false;
   return start <= dayEnd && end >= dayStart;
 }
+// MODIFICATION END
+
 function sortByStart(a, b) {
   const { start: sa } = getEventRange(a);
   const { start: sb } = getEventRange(b);
