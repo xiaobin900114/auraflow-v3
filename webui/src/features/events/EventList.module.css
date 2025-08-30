@@ -1,0 +1,102 @@
+/* ===== 容器 & 空态 ===== */
+.container { display: grid; gap: 8px; }
+.empty { padding: 12px; font-size: 12px; color: #9ca3af; text-align: center; }
+
+/* ===== 卡片（老风格，克制） ===== */
+.card {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
+  cursor: pointer;
+  background: #fff;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.card:hover { background: #fafafa; }
+.selected {
+  background: #eef2ff;
+  outline: 1px solid rgba(79,70,229,.25);
+  outline-offset: -1px;
+}
+.cardMuted {                   /* 已完成区的淡化效果 */
+  background: #f8fafc;
+  border-color: rgba(15,23,42,0.04);
+}
+
+/* 顶部信息 */
+.metaTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.category {
+  font-size: 10px;
+  color: #4f46e5;            /* indigo-600 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+.datetime {
+  font-size: 11px;
+  color: #94a3b8;            /* slate-400 */
+  white-space: nowrap;
+}
+
+/* 标题（单行省略，克制） */
+.title {
+  font-weight: 600;
+  color: #1f2937;            /* gray-800 */
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 底部信息 */
+.metaBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.status {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #f3f4f6;       /* gray-100 */
+  color: #374151;            /* gray-700 */
+}
+.aiMark {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: #475569;            /* slate-600 */
+  background: #e2e8f0;       /* slate-200 */
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* ===== “已完成”分区（done / cancelled） ===== */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 2px 8px;
+  font-size: 12px;
+  color: #64748b; /* slate-500 */
+}
+.sectionTitle { white-space: nowrap; }
+.divider {
+  flex: 1;
+  height: 1px;
+  background: rgba(15, 23, 42, 0.06); /* slate-900 @6% */
+  border-radius: 1px;
+}
+.completedWrap { margin-top: 6px; }
+
+/* 已完成区再轻一点的文本色（保持可读，不做灰阶/删除线） */
+.completedWrap .title { color: #475569; font-weight: 500; }
+.completedWrap .datetime { color: #a1a1aa; }
+.completedWrap .status { background: #f1f5f9; color: #64748b; }
+.completedWrap .aiMark { background: #e2e8f0; color: #64748b; }

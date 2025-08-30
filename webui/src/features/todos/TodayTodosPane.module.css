@@ -1,0 +1,61 @@
+.wrap { @apply p-4 flex flex-col gap-4; }
+
+/* 卡片 */
+.section { @apply bg-white border border-gray-200 rounded-lg overflow-hidden; }
+.hd { @apply bg-gray-50 border-b border-gray-200 px-3 py-2 flex items-center justify-between; }
+.title { @apply text-xs font-bold text-gray-700; }
+.count { @apply text-[11px] bg-gray-200 text-gray-600 rounded-full px-2 py-0.5; }
+.muted { @apply bg-gray-100 text-gray-500; }
+
+.subHd { @apply px-3 pt-3 pb-2 flex items-center justify-between; }
+.subHdMuted { @apply px-3 pt-3 pb-2 flex items-center justify-between text-gray-500; }
+
+.list { @apply px-3 pb-3 flex flex-col gap-2 list-none m-0; }
+
+/* 列表项：两行布局 */
+.item { @apply border border-gray-200 rounded-md bg-white hover:bg-gray-50 transition-colors; }
+.rowTop { @apply flex items-start gap-2 p-2; }
+.rowBottom { @apply flex items-center gap-2 px-2 pb-2 pt-0; }
+
+/* 勾选 & 正文 */
+.chk { @apply h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 mt-0.5 shrink-0; }
+.textWrap { @apply flex-1 min-w-0; }
+.txt { @apply text-xs text-gray-800 whitespace-pre-wrap break-words leading-5; }
+.clamp2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.done { @apply line-through text-gray-400; }
+
+/* 第二行：操作与来源 */
+.actions { @apply flex items-center gap-2 ml-auto; }         /* 关键：右对齐 */
+.iconBtn { @apply inline-flex items-center justify-center h-6 w-6 rounded-md border bg-white hover:bg-gray-50 text-gray-700; }
+.icon { @apply h-4 w-4; }
+.srcRow { @apply flex items-center gap-2 flex-1 min-w-0; }  /* 占据左侧，撑满 */
+.src { @apply text-[11px] whitespace-nowrap px-1 text-indigo-600 hover:underline disabled:text-gray-400 disabled:hover:no-underline disabled:cursor-default; }
+
+/* 标签弱化，放在第二行 */
+.badge { @apply text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500; }
+.badgePrimary { @apply inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700; }
+
+
+/* 展开按钮（caret） */
+.caretBtn { @apply inline-flex items-center justify-center h-6 w-6 text-gray-500 hover:text-gray-700; }
+
+/* 输入区 */
+.form { @apply px-3 pt-3 pb-0 flex gap-2; }
+.input { @apply flex-1 border rounded px-2 py-1 text-xs; }
+.button { @apply px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300; }
+
+/* 计数与空态 */
+.empty { @apply px-3 pb-3 text-center text-xs text-gray-400; }
+.busy { @apply opacity-75 pointer-events-none; }
+
+/* 编辑态文本域 */
+.todoInput { @apply w-full text-xs leading-tight resize-none overflow-hidden border rounded px-2 py-1; }
+.editing { @apply ring-2 ring-indigo-200; }
+.editRow { @apply flex items-start gap-2 flex-1; }
+
+
