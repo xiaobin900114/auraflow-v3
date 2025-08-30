@@ -27,6 +27,7 @@ serve(async (req) => {
       event_uid: record.event_uid,
       new_status: record.status,
       spreadsheet_id: record.spreadsheet_id, // <-- 从数据库记录中获取 spreadsheet_id
+      sheet_gid: record.sheet_gid,
     };
     
     // 【重要】添加一个健壮性检查，如果 spreadsheet_id 不存在，则中止并报错。
