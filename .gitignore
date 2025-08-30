@@ -12,9 +12,11 @@ dist
 .supabase
 supabase/.temp
 supabase/volumes
+supabase/.DS_Store
 
 # macOS
 .DS_Store
 
 # Windows
 Thumbs.db
+
