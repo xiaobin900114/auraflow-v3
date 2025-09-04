@@ -72,12 +72,21 @@ function syncAllChanges() {
   }
 
   // 如果项目信息工作表存在，则从中创建项目数据负载。
+  // if (projectInfoSheet) {
+  //   projectPayload = createProjectPayload(projectInfoSheet, spreadsheetId);
+  // }
+  // 如果项目信息工作表存在，则从中创建项目数据负载。
   if (projectInfoSheet) {
     projectPayload = createProjectPayload(projectInfoSheet, spreadsheetId);
   }
 
+  // 从项目负载中提取 category，以便将其用作任务的默认值。
+  const projectCategory = projectPayload ? projectPayload.category : null;
+
+  // 从任务工作表中获取所有被标记为 'modified' 的任务，并传入项目 category。
+  const taskData = getTasksToSync(tasksSheet, spreadsheetId, projectCategory);
+
   // 从任务工作表中获取所有被标记为 'modified' 的任务。
-  const taskData = getTasksToSync(tasksSheet, spreadsheetId);
   tasksToSync.push(...taskData.tasks);
   taskRowLocations.push(...taskData.locations);
 
@@ -139,7 +148,7 @@ function createProjectPayload(sheet, spreadsheetId) {
  * @param {string} spreadsheetId - 当前电子表格的 ID。
  * @returns {{tasks: Array<Object>, locations: Array<Object>}} - 包含任务数据负载和其位置信息的对象。
  */
-function getTasksToSync(sheet, spreadsheetId) {
+function getTasksToSync(sheet, spreadsheetId, projectCategory) {
   const headers = getHeaders(sheet);
   const lastRow = sheet.getLastRow();
   if (lastRow <= CONFIG.headerRow) return { tasks: [], locations: [] };
@@ -158,7 +167,7 @@ function getTasksToSync(sheet, spreadsheetId) {
     if (row[statusColIndex] === CONFIG.statusIndicators.modified) {
       const rowNum = index + CONFIG.headerRow + 1; // 计算在工作表中的实际行号。
       const sheetGid = sheet.getSheetId();
-      const taskPayload = createTaskPayload(headers, row, spreadsheetId, sheetName, rowNum, sheetGid);
+      const taskPayload = createTaskPayload(headers, row, spreadsheetId, sheetName, rowNum, sheetGid, projectCategory);
       
       // 只有包含必填字段（如 title）的任务才会被加入同步列表。
       if (taskPayload) {
@@ -180,7 +189,7 @@ function getTasksToSync(sheet, spreadsheetId) {
  * @param {number} sheetGid - 工作表的 GID。
  * @returns {Object|null} - 格式化后的任务对象，或在缺少必填字段时返回 null。
  */
-function createTaskPayload(headers, rowData, spreadsheetId, sheetName, rowNum, sheetGid) {
+function createTaskPayload(headers, rowData, spreadsheetId, sheetName, rowNum, sheetGid, projectCategory) {
   const payload = {};
   // 添加 Google Sheet 的元数据，用于唯一标识和定位。
   payload.spreadsheet_id = spreadsheetId; 
@@ -202,13 +211,9 @@ function createTaskPayload(headers, rowData, spreadsheetId, sheetName, rowNum, s
   });
 
   // （此部分为特定业务逻辑，可根据需要调整）
-  const isProjectWorkbook = !!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.projectInfoSheet);
-  if (isProjectWorkbook) {
-    for (const key in CONFIG.hardcodedFields) {
-      payload[key] = CONFIG.hardcodedFields[key];
-    }
-  } else if (CONFIG.defaultCategoryForArea) {
-    payload.category = CONFIG.defaultCategoryForArea;
+  // 如果任务本身没有设置 category，但从 Project_Info 传入了默认的 category，则使用它。
+  if (!payload.category && projectCategory) {
+    payload.category = projectCategory;
   }
 
   // 检查任务是否包含 CONFIG 中定义的必填字段。
