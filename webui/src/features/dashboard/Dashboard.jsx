@@ -21,38 +21,121 @@ export default function Dashboard() {
   // ... 其他函数保持不变 ...
   const todaySH = useCallback(() => ymdTZ(new Date(), 'Asia/Shanghai'), []);
   
+  // === 新增：今天的时间范围（上海时区） ===
+  const getTodayRangeISO = (d = new Date()) => {
+    const parts = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(d);
+    const y = Number(parts.find(p => p.type === 'year').value);
+    const m = Number(parts.find(p => p.type === 'month').value);
+    const day = Number(parts.find(p => p.type === 'day').value);
+    const toISO = (Y, M, D, hh, mm, ss) =>
+      new Date(Date.UTC(Y, M - 1, D, hh, mm, ss)).toISOString();
+    return {
+      startISO: toISO(y, m, day, 0, 0, 0),        // 今天 00:00:00（ISO）
+      endISO: toISO(y, m, day, 23, 59, 59),     // 今天 23:59:59（ISO）
+    };
+  };
+
+
+  // const loadInitialData = useCallback(async () => {
+  //   const today = todaySH();
+  //   const [
+  //     { data: evts, error: evErr },
+  //     { data: projs, error: projErr },
+  //     { data: pool, error: poolErr },
+  //     { data: rpcRows, error: rpcErr }
+  //   ] = await Promise.all([
+  //     supabase.from('events').select('*').order('created_at', { ascending: false }),
+  //     supabase.from('projects').select('*').order('name', { ascending: true }),
+  //     supabase.from('todo_items').select('*, events(id, title)').eq('is_mission_pool', true).eq('due_date', today).order('created_by', { ascending: false }).order('created_at', { ascending: true }),
+  //     supabase.rpc('get_today_todos_shanghai')
+  //   ]);
+  //   if (evErr) console.error('[events] select error', evErr);
+  //   setAllEvents(evts || []);
+  //   if (projErr) console.error('[projects] select error', projErr);
+  //   setAllProjects(projs || []);
+  //   if (poolErr) console.error('[todos pool today] select error', poolErr);
+  //   setMissionTodos(pool || []);
+  //   let rows = [];
+  //   if (rpcErr) {
+  //      console.warn('[rpc get_today_todos_shanghai] fallback to due_date eq', today, rpcErr);
+  //      const { data: fallback, error: fbErr } = await supabase.from('todo_items').select('*, events(id, title)').eq('due_date', today).neq('is_mission_pool', true).order('created_by', { ascending: false }).order('created_at', { ascending: true });
+  //     if (fbErr) console.error('[todos fallback] select error', fbErr);
+  //     rows = fallback || [];
+  //   } else {
+  //       rows = rpcRows || [];
+  //       rows = rows.filter(r => r.is_mission_pool !== true).map(r => ({ ...r, events: r.events_id ? { id: r.events_id, title: r.events_title } : null, })).sort((a, b) => (a.created_by === 'user' ? 0 : 1) - (b.created_by === 'user' ? 0 : 1) || new Date(a.created_at) - new Date(b.created_at));
+  //   }
+  //   setTodayTodos(rows);
+  //   console.log('[today]', today, 'projects=', (projs || []).length, 'pool=', (pool || []).length, 'nonPool=', rows.length);
+  // }, [todaySH]);
+
   const loadInitialData = useCallback(async () => {
-    const today = todaySH();
+    const today = todaySH(); // 仍可用于日志
+    const { startISO, endISO } = getTodayRangeISO();
+
+    // 1) 基础数据（events / projects）
     const [
       { data: evts, error: evErr },
       { data: projs, error: projErr },
-      { data: pool, error: poolErr },
-      { data: rpcRows, error: rpcErr }
     ] = await Promise.all([
       supabase.from('events').select('*').order('created_at', { ascending: false }),
       supabase.from('projects').select('*').order('name', { ascending: true }),
-      supabase.from('todo_items').select('*, events(id, title)').eq('is_mission_pool', true).eq('due_date', today).order('created_by', { ascending: false }).order('created_at', { ascending: true }),
-      supabase.rpc('get_today_todos_shanghai')
     ]);
     if (evErr) console.error('[events] select error', evErr);
     setAllEvents(evts || []);
     if (projErr) console.error('[projects] select error', projErr);
     setAllProjects(projs || []);
-    if (poolErr) console.error('[todos pool today] select error', poolErr);
+
+    // 2) 使命必达池：仅看 is_mission_pool=true（不再按日期过滤）
+    const { data: pool, error: poolErr } = await supabase
+      .from('todo_items')
+      .select('*, events(id, title)')
+      .eq('is_mission_pool', true)
+      .order('created_by', { ascending: false })
+      .order('created_at', { ascending: true });
+    if (poolErr) console.error('[todos mission pool] select error', poolErr);
     setMissionTodos(pool || []);
-    let rows = [];
-    if (rpcErr) {
-       console.warn('[rpc get_today_todos_shanghai] fallback to due_date eq', today, rpcErr);
-       const { data: fallback, error: fbErr } = await supabase.from('todo_items').select('*, events(id, title)').eq('due_date', today).neq('is_mission_pool', true).order('created_by', { ascending: false }).order('created_at', { ascending: true });
-      if (fbErr) console.error('[todos fallback] select error', fbErr);
-      rows = fallback || [];
+
+    // 3) 今日所有代办：按“与今天有时间交集”
+    //    条件：start_time <= 今天结束 && end_time >= 今天开始
+    //    并且排除使命必达池（is_mission_pool !== true），避免重复出现在两个区块
+    const { data: rows, error: dayErr } = await supabase
+      .from('todo_items')
+      .select('*, events(id, title)')
+      .lte('start_time', endISO)
+      .gte('end_time', startISO)
+      .neq('is_mission_pool', true)
+      .order('created_by', { ascending: false })
+      .order('created_at', { ascending: true });
+
+    if (dayErr) {
+      console.error('[today todos by time-range] select error', dayErr);
+      setTodayTodos([]);
     } else {
-        rows = rpcRows || [];
-        rows = rows.filter(r => r.is_mission_pool !== true).map(r => ({ ...r, events: r.events_id ? { id: r.events_id, title: r.events_title } : null, })).sort((a, b) => (a.created_by === 'user' ? 0 : 1) - (b.created_by === 'user' ? 0 : 1) || new Date(a.created_at) - new Date(b.created_at));
+      // 与原逻辑保持一致的映射/排序（最小改动）
+      const normalized = (rows || [])
+        .map(r => ({
+          ...r,
+          events: r.events?.id ? r.events : (r.events_id ? { id: r.events_id, title: r.events_title } : null)
+        }))
+        .sort((a, b) =>
+          (a.created_by === 'user' ? 0 : 1) - (b.created_by === 'user' ? 0 : 1) ||
+          new Date(a.created_at) - new Date(b.created_at)
+        );
+      setTodayTodos(normalized);
     }
-    setTodayTodos(rows);
-    console.log('[today]', today, 'projects=', (projs || []).length, 'pool=', (pool || []).length, 'nonPool=', rows.length);
+
+    console.log(
+      '[today]', today,
+      'projects=', (projs || []).length,
+      'pool=', (pool || []).length,
+      'nonPool=', (rows || []).length
+    );
   }, [todaySH]);
+
   
   useEffect(() => {
     loadInitialData();

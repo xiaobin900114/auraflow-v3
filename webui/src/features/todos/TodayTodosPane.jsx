@@ -4,6 +4,32 @@ import { useToast } from '../../components/Toast/ToastProvider';
 import styles from './TodayTodosPane.module.css';
 import TodayTodoItem from './TodayTodoItem';
 
+// === 新增：获取“今日起止”的帮助函数（上海时区） ===
+const getTodayRange = (d = new Date()) => {
+  const fmt = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  });
+  // 生成今天0点和23:59:59
+  const tz = 'Asia/Shanghai';
+  const toISOInTZ = (y, m, day, hh, mm, ss) => {
+    // 构造本地（上海时区）时间，再转 ISO
+    const dt = new Date(Date.UTC(y, m - 1, day, hh, mm, ss));
+    // 这里假定后端使用 timestamptz，传 ISO 字符串即可
+    return dt.toISOString();
+  };
+  const parts = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(d);
+  const y = Number(parts.find(p => p.type === 'year').value);
+  const m = Number(parts.find(p => p.type === 'month').value);
+  const day = Number(parts.find(p => p.type === 'day').value);
+  return {
+    startISO: toISOInTZ(y, m, day, 0, 0, 0),
+    endISO:   toISOInTZ(y, m, day, 23, 59, 59),
+    y, m, day
+  };
+};
+
 const ymd = (d = new Date()) => {
   const f = new Intl.DateTimeFormat('zh-CN', {
     timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -48,6 +74,7 @@ export default function TodayTodosPane({ missionTodos = [], todos = [], onSelect
   const [dayList, setDayList] = useState(() => todos || []);
   const [adding, setAdding] = useState(false);
   const [addText, setAddText] = useState('');
+  const [completedCollapsed, setCompletedCollapsed] = useState(true);
   const pendingEditRef = useRef(false);
 
   useEffect(() => { if (!pendingEditRef.current) setPoolList(missionTodos || []); }, [missionTodos]);
@@ -76,16 +103,21 @@ export default function TodayTodosPane({ missionTodos = [], todos = [], onSelect
     return mix;
   }, [groupedPool.done, groupedDay.done]);
 
+  // === 改动：完成 -> 若置为完成，自动移出使命必达池（is_mission_pool:false） ===
   const toggleIn = async (list, setList, todo) => {
     const snapshot = list;
-    setList(prev => prev.map(t => t.id === todo.id ? { ...t, is_completed: !t.is_completed, __busy: true } : t));
+    const willComplete = !todo.is_completed;
+    const localPatch = { is_completed: willComplete, ...(willComplete ? { is_mission_pool: false } : {}) };
+
+    setList(prev => prev.map(t => t.id === todo.id ? { ...t, ...localPatch, __busy: true } : t));
     try {
-      const { error } = await supabase.from('todo_items')
-        .update({ is_completed: !todo.is_completed })
+      const { error } = await supabase
+        .from('todo_items')
+        .update(localPatch)
         .eq('id', todo.id);
       if (error) throw error;
       setList(prev => prev.map(t => t.id === todo.id ? { ...t, __busy: false } : t));
-      toast(!todo.is_completed ? '已标记完成' : '已标记未完成', 'success');
+      toast(willComplete ? '已标记完成（并已从使命必达池移出）' : '已标记未完成', 'success');
     } catch (e) {
       setList(snapshot); toast(`操作失败：${e.message || ''}`, 'error');
     }
@@ -136,16 +168,25 @@ export default function TodayTodosPane({ missionTodos = [], todos = [], onSelect
     }
   };
 
+  // === 改动：使命必达池里“新增”→ 使用今日起止的 start_time / end_time 写入 ===
   const handleAddMission = async (e) => {
     e?.preventDefault?.();
     const text = (addText || '').trim();
     if (!text || adding) return;
     setAdding(true);
-    const today = ymd(new Date());
+
+    const { startISO, endISO } = getTodayRange(new Date());
     const tempId = `temp_${Date.now()}`;
     const temp = {
-      id: tempId, event_id: null, task_content: text, is_completed: false,
-      created_by: 'user', due_date: today, is_mission_pool: true, __temp: true, __busy: true,
+      id: tempId,
+      event_id: null,
+      task_content: text,
+      is_completed: false,
+      created_by: 'user',
+      is_mission_pool: true,
+      start_time: startISO,
+      end_time: endISO,
+      __temp: true, __busy: true,
     };
     setPoolList(curr => [temp, ...curr]);
     setAddText('');
@@ -154,8 +195,12 @@ export default function TodayTodosPane({ missionTodos = [], todos = [], onSelect
       const { data, error } = await supabase
         .from('todo_items')
         .insert({
-          event_id: null, task_content: text, is_completed: false,
-          created_by: 'user', due_date: today, is_mission_pool: true,
+          event_id: null,
+          task_content: text,
+          created_by: 'user',
+          is_mission_pool: true,
+          start_time: startISO,
+          end_time: endISO,
         })
         .select('*').limit(1).single();
       if (error) throw error;
@@ -193,7 +238,7 @@ export default function TodayTodosPane({ missionTodos = [], todos = [], onSelect
       <div className={styles.section}>
         <div className={styles.hd}>
           <div className={styles.title}>使命必达池（今天）</div>
-          <div className={styles.count}>{groupedPool.unDone.length + groupedPool.done.length}</div>
+          <div className={styles.count}>{groupedPool.unDone.length}</div>
         </div>
         <AddForm handleAddMission={handleAddMission} addText={addText} setAddText={setAddText} adding={adding} />
         <div className={styles.subHd}>
@@ -205,11 +250,11 @@ export default function TodayTodosPane({ missionTodos = [], todos = [], onSelect
         ) : <Empty text="使命必达池里暂无未完成" />}
       </div>
 
-      {/* 今日所有代办 */}
+      {/* 今日所有代办（*列表本身的筛选建议在父层，见下文“父层查询改造”*） */}
       <div className={styles.section}>
         <div className={styles.hd}>
           <div className={styles.title}>今日所有代办</div>
-          <div className={styles.count}>{groupedDay.unDone.length + groupedDay.done.length}</div>
+          <div className={styles.count}>{groupedDay.unDone.length}</div>
         </div>
         <div className={styles.subHd}>
           <span>未完成</span>
@@ -223,15 +268,26 @@ export default function TodayTodosPane({ missionTodos = [], todos = [], onSelect
       {/* 已完成 */}
       {completedCombined.length > 0 && (
         <div className={styles.section}>
-          <div className={styles.hd}>
-            <div className={styles.title}>已完成</div>
+          <div
+            className={styles.hd}
+            style={{ cursor: 'pointer' }}
+            onClick={() => setCompletedCollapsed(v => !v)}
+            title={completedCollapsed ? '展开已完成' : '收起已完成'}
+          >
+            <div className={styles.title}>
+              {completedCollapsed ? '▶ 已完成' : '▼ 已完成'}
+            </div>
             <div className={`${styles.count} ${styles.muted}`}>{completedCombined.length}</div>
           </div>
-          <ul className={styles.list}>
-            {completedCombined.map(({ item, fromPool }) => renderRow(item, fromPool))}
-          </ul>
+
+          {!completedCollapsed && (
+            <ul className={styles.list}>
+              {completedCombined.map(({ item, fromPool }) => renderRow(item, fromPool))}
+            </ul>
+          )}
         </div>
       )}
+
     </div>
   );
 }

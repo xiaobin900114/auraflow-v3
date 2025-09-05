@@ -32,3 +32,57 @@
 .badgeWrap { @apply shrink-0; }
 .badgeAi { @apply text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700; }
 .badgeUser { @apply text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700; }
+
+/* 以下是新加的 */
+
+/* In src/features/todos/TodoPanel.module.css */
+
+/* 让 todo item 使用 flex 布局 */
+.todoItem {
+  display: flex;
+  align-items: flex-start; /* 顶部对齐 */
+  gap: 8px; /* 元素间距 */
+  padding: 8px 4px;
+}
+
+/* 让文本内容区域占据主要空间 */
+.contentWrap {
+  flex: 1 1 auto;
+  min-width: 0; /* flex 布局中防止内容溢出的关键 */
+}
+
+/* 按钮容器 */
+.actionsWrap {
+  flex-shrink: 0; /* 防止按钮被压缩 */
+}
+
+/* 操作按钮样式 */
+.actionButton {
+  background-color: transparent;
+  border: 1px solid #e2e8f0; /* light gray border */
+  border-radius: 9999px; /* fully rounded */
+  padding: 2px;
+  cursor: pointer;
+  color: #475569; /* slate-600 */
+  transition: all 0.2s;
+}
+
+.actionButton:hover:not(:disabled) {
+  background-color: #f1f5f9; /* slate-100 */
+  color: #1e293b; /* slate-800 */
+  border-color: #cbd5e1; /* slate-300 */
+}
+
+.actionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 按钮内的图标大小 */
+.actionIcon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.iconBtn { @apply inline-flex items-center justify-center h-6 w-6 rounded-md border bg-white hover:bg-gray-50 text-gray-700; }
