@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../api/supabase';
-import { useToast } from '../../components/Toast/ToastProvider';
+import { useToast } from '../../components/Toast/context';
 import TodoItem from './TodoItem';
 import styles from './TodoPanel.module.css';
 

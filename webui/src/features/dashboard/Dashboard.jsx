@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../api/supabase';
 import DateBar from '../../components/DateBar/DateBar';
 import FilterPanel from '../../components/FilterPanel/FilterPanel';
@@ -8,6 +8,8 @@ import EventDetail from '../events/EventDetail';
 import TodoPanel from '../todos/TodoPanel';
 import TodayTodosPane from '../todos/TodayTodosPane';
 import { ymdTZ } from '../../utils/date';
+import CreateEventModal from '../events/CreateEventModal';
+import { useToast } from '../../components/Toast/context';
 
 export default function Dashboard() {
   const [allEvents, setAllEvents] = useState([]);
@@ -17,6 +19,8 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [activeFilter, setActiveFilter] = useState('all');
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [createModalProject, setCreateModalProject] = useState(null);
+  const { toast } = useToast();
 
   // ... 其他函数保持不变 ...
   const todaySH = useCallback(() => ymdTZ(new Date(), 'Asia/Shanghai'), []);
@@ -163,6 +167,119 @@ export default function Dashboard() {
     }
   };
 
+  const activeProjectId = useMemo(() => {
+    if (!activeFilter.startsWith('project-')) return null;
+    const [, id] = activeFilter.split('-');
+    const parsed = Number.parseInt(id, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }, [activeFilter]);
+
+  const activeProject = useMemo(() => {
+    if (!activeProjectId) return null;
+    return allProjects.find(p => p.id === activeProjectId) || null;
+  }, [activeProjectId, allProjects]);
+
+  const handleOpenCreateEvent = (project) => {
+    if (!project) return;
+    setCreateModalProject(project);
+  };
+
+  const handleCloseCreateEvent = () => setCreateModalProject(null);
+
+  const handleCreateEvent = useCallback(async (form) => {
+    if (!createModalProject) return;
+    const project = createModalProject;
+
+    if (!form.title) {
+      toast('请输入任务标题', 'error');
+      throw new Error('title_required');
+    }
+
+    const startISO = form.startAt ? new Date(form.startAt).toISOString() : null;
+    const endISO = form.endAt ? new Date(form.endAt).toISOString() : null;
+
+    if (startISO && endISO && new Date(endISO) < new Date(startISO)) {
+      toast('结束时间不能早于开始时间', 'error');
+      throw new Error('invalid_time_range');
+    }
+
+    const eventsForProject = allEvents.filter(evt => evt.project_id === project.id);
+    const metadataSource = eventsForProject.find(evt => evt.spreadsheet_id && evt.sheet_gid) || null;
+
+    const spreadsheetId = project.spreadsheet_id
+      || project.spreadsheetId
+      || metadataSource?.spreadsheet_id
+      || metadataSource?.spreadsheetId
+      || null;
+
+    const sheetGid = project.tasks_sheet_gid
+      || project.sheet_gid
+      || project.sheetGid
+      || project.tasksSheetGid
+      || metadataSource?.sheet_gid
+      || metadataSource?.sheetGid
+      || null;
+
+    if (!spreadsheetId || !sheetGid) {
+      toast('缺少 Google Sheet 配置，无法回写。请先同步项目信息。', 'error');
+      throw new Error('missing_sheet_metadata');
+    }
+
+    const body = {
+      title: form.title,
+      status: form.status,
+      priority: form.priority,
+      owner: form.owner || null,
+      description: form.description || null,
+      start_time: startISO,
+      end_time: endISO,
+      project_id: project.id,
+      category: project.category || metadataSource?.category || null,
+      spreadsheet_id: spreadsheetId,
+      sheet_gid: sheetGid,
+    };
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      const { data, error } = await supabase.functions.invoke('create-event-with-sheet', {
+        body: Object.fromEntries(
+          Object.entries(body).filter(([, value]) => value !== undefined)
+        ),
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      });
+
+      if (error) {
+        const detail = error?.context?.response?.statusText
+          || error?.context?.response?.status
+          || error?.message;
+        throw new Error(data?.message || detail || 'Edge Function error');
+      }
+      if (!data?.event) {
+        throw new Error(data?.message || '未返回事件数据。');
+      }
+
+      const createdEvent = data.event;
+
+      toast('任务已创建并推送同步。', 'success');
+      setSelectedEvent(createdEvent);
+      setActiveFilter(`project-${createdEvent.project_id}`);
+      if (startISO) {
+        const parsed = new Date(startISO);
+        if (!Number.isNaN(parsed.getTime())) {
+          setSelectedDate(parsed);
+        }
+      }
+      setCreateModalProject(null);
+      return createdEvent;
+    } catch (err) {
+      console.error('[create event]', err);
+      toast(`创建失败：${err.message || err}`, 'error');
+      throw err;
+    }
+  }, [createModalProject, allEvents, toast, setActiveFilter, setSelectedEvent, setSelectedDate]);
+
 
   return (
     <section className="h-full flex flex-col">
@@ -199,13 +316,28 @@ export default function Dashboard() {
               onSelectTodo={handleSelectEvent}
             />
           ) : (
-            <EventList
-              allEvents={allEvents}
-              selectedDate={selectedDate}
-              activeFilter={activeFilter}
-              selectedEvent={selectedEvent}
-              onSelectEvent={setSelectedEvent}
-            />
+            <>
+              {activeProject && (
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 sticky top-0 bg-white z-10">
+                  <div className="text-sm font-medium text-slate-700" title={activeProject.name}>{activeProject.name}</div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCreateEvent(activeProject)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-500"
+                  >
+                    <span className="text-base leading-none">＋</span>
+                    <span>新增任务</span>
+                  </button>
+                </div>
+              )}
+              <EventList
+                allEvents={allEvents}
+                selectedDate={selectedDate}
+                activeFilter={activeFilter}
+                selectedEvent={selectedEvent}
+                onSelectEvent={setSelectedEvent}
+              />
+            </>
           )}
         </div>
 
@@ -219,6 +351,12 @@ export default function Dashboard() {
           <TodoPanel event={selectedEvent} />
         </div>
       </div>
+      <CreateEventModal
+        open={Boolean(createModalProject)}
+        project={createModalProject}
+        onClose={handleCloseCreateEvent}
+        onSubmit={handleCreateEvent}
+      />
     </section>
   );
 }

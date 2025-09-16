@@ -1,18 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../api/supabase';
-import { useToast } from '../../components/Toast/ToastProvider';
+import { useToast } from '../../components/Toast/context';
 import styles from './TodayTodosPane.module.css';
 import TodayTodoItem from './TodayTodoItem';
 
 // === 新增：获取“今日起止”的帮助函数（上海时区） ===
 const getTodayRange = (d = new Date()) => {
-  const fmt = new Intl.DateTimeFormat('zh-CN', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-  });
-  // 生成今天0点和23:59:59
-  const tz = 'Asia/Shanghai';
+  // 生成今天 00:00:00 ~ 23:59:59 的 ISO 字符串（上海时区）
   const toISOInTZ = (y, m, day, hh, mm, ss) => {
     // 构造本地（上海时区）时间，再转 ISO
     const dt = new Date(Date.UTC(y, m - 1, day, hh, mm, ss));
@@ -28,17 +22,6 @@ const getTodayRange = (d = new Date()) => {
     endISO:   toISOInTZ(y, m, day, 23, 59, 59),
     y, m, day
   };
-};
-
-const ymd = (d = new Date()) => {
-  const f = new Intl.DateTimeFormat('zh-CN', {
-    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
-  });
-  const parts = f.formatToParts(d);
-  const y = parts.find(p => p.type === 'year').value;
-  const m = parts.find(p => p.type === 'month').value;
-  const day = parts.find(p => p.type === 'day').value;
-  return `${y}-${m}-${day}`;
 };
 
 const Empty = ({ text }) => <div className={styles.empty}>{text}</div>;

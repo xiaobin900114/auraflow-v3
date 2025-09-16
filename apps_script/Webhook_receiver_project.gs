@@ -22,6 +22,7 @@ function doPost(e) {
       throw new Error("请求体中缺少数据。");
     }
     payload = JSON.parse(e.postData.contents);
+    Logger.log(`Incoming payload: ${JSON.stringify(payload)}`);
 
     // 验证安全令牌
     if (payload.secret !== SECRET_TOKEN) {
@@ -30,12 +31,20 @@ function doPost(e) {
     }
     
     // 验证操作类型和核心字段是否存在
-    if (payload.action !== 'UPDATE') {
-      return createJsonResponse({ success: false, error: "无效的操作类型。当前仅支持 'UPDATE'。" }, 400);
+    if (['UPDATE', 'CREATE'].indexOf(payload.action) === -1) {
+      return createJsonResponse({ success: false, error: "无效的操作类型。当前仅支持 'UPDATE' 或 'CREATE'。" }, 400);
     }
 
-    if (!payload.spreadsheet_id || !payload.sheet_gid || !payload.lookup || !payload.data) {
-      return createJsonResponse({ success: false, error: "请求体中缺少必要的字段：'spreadsheet_id', 'sheet_gid', 'lookup', 'data'。" }, 400);
+    if (!payload.spreadsheet_id || !payload.sheet_gid) {
+      return createJsonResponse({ success: false, error: "请求体中缺少必要的字段：'spreadsheet_id' 或 'sheet_gid'。" }, 400);
+    }
+
+    if (payload.action === 'UPDATE' && (!payload.lookup || !payload.data)) {
+      return createJsonResponse({ success: false, error: "UPDATE 操作需要提供 'lookup' 和 'data' 字段。" }, 400);
+    }
+
+    if (payload.action === 'CREATE' && !payload.data) {
+      return createJsonResponse({ success: false, error: "CREATE 操作需要提供 'data' 字段。" }, 400);
     }
 
   } catch (err) {
@@ -60,8 +69,37 @@ function doPost(e) {
     // 创建一个表头名称到列号的映射，方便后续查找
     // 例如：{ "event_uid": 1, "status": 5, "owner": 8 }
     const headersMap = getHeadersMap(sheet);
-    
-    // 根据 lookup 对象中的条件查找需要更新的目标行
+
+    if (payload.action === 'CREATE') {
+      try {
+        const maxColumn = sheet.getLastColumn();
+        const rowValues = Array(maxColumn).fill('');
+
+        for (const columnName in payload.data) {
+          const columnIndex = headersMap[columnName];
+          if (columnIndex) {
+            rowValues[columnIndex - 1] = payload.data[columnName];
+          } else {
+            Logger.log(`CREATE: 未找到列 ${columnName}，跳过。`);
+          }
+        }
+
+        sheet.appendRow(rowValues);
+        const rowNum = sheet.getLastRow();
+        const sheetRowId = `${payload.spreadsheet_id}:${sheet.getName()}:${rowNum}`;
+
+        if (headersMap['sheet_row_id']) {
+          sheet.getRange(rowNum, headersMap['sheet_row_id']).setValue(sheetRowId);
+        }
+
+        return createJsonResponse({ success: true, message: `第 ${rowNum} 行已成功创建。`, row_num: rowNum, sheet_row_id: sheetRowId, debug: rowValues });
+      } catch (createErr) {
+        Logger.log(`CREATE 失败: ${createErr.message}`);
+        return createJsonResponse({ success: false, error: `CREATE 失败: ${createErr.message}` }, 500);
+      }
+    }
+
+    // --- UPDATE 流程 ---
     const lookupColumnIndex = headersMap[payload.lookup.column];
     if (!lookupColumnIndex) {
       throw new Error(`查找列 '${payload.lookup.column}' 在目标工作表中不存在。`);
@@ -72,20 +110,21 @@ function doPost(e) {
       throw new Error(`未找到满足条件 '${payload.lookup.column}' = '${payload.lookup.value}' 的行。`);
     }
 
-    // --- 3. 遍历 data 对象，执行单元格更新 ---
-    const dataToUpdate = payload.data;
-    for (const columnName in dataToUpdate) {
-      const columnIndex = headersMap[columnName];
-      if (columnIndex) {
-        // 如果在表头映射中找到了对应的列，则更新该单元格的值
-        sheet.getRange(rowNum, columnIndex).setValue(dataToUpdate[columnName]);
-      } else {
-        // 如果在工作表中找不到 payload 中指定的列，则记录一个警告，并跳过该字段
-        Logger.log(`警告: 来自 payload 的列名 '${columnName}' 在工作表中未找到，已跳过。`);
+    try {
+      const dataToUpdate = payload.data;
+      for (const columnName in dataToUpdate) {
+        const columnIndex = headersMap[columnName];
+        if (columnIndex) {
+          sheet.getRange(rowNum, columnIndex).setValue(dataToUpdate[columnName]);
+        } else {
+          Logger.log(`警告: 来自 payload 的列名 '${columnName}' 在工作表中未找到，已跳过。`);
+        }
       }
+      return createJsonResponse({ success: true, message: `第 ${rowNum} 行已成功更新。` });
+    } catch (updateErr) {
+      Logger.log(`UPDATE 失败: ${updateErr.message}`);
+      return createJsonResponse({ success: false, error: `UPDATE 失败: ${updateErr.message}` }, 500);
     }
-
-    return createJsonResponse({ success: true, message: `第 ${rowNum} 行已成功更新。` });
 
   } catch (error) {
     Logger.log(`执行更新时出错: ${error.message} | Payload: ${JSON.stringify(payload)}`);
